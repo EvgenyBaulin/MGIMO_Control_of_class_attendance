@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset = "UTF-8"/>
+    <title>Регистрация & Вход</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 2rem;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .box {
+            border: 1px solid #ccc;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        h2, h3 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        form {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: inline-block;
+            width: 120px;
+            margin-right: 0.5rem;
+        }
+
+        input, select {
+            margin-bottom: 0.5rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+        }
+
+        .response-box {
+            background: #f9f9f9;
+            padding: 0.5rem;
+            white-space: pre-wrap;
+            border: 1px solid #eee;
+            margin-top: 1rem;
+            min-height: 50px;
+        }
+    </style>
+</head>
+<body>
+<header style = "margin-bottom: 1rem; padding: 1rem; background: #eee; border-bottom: 1px solid #ccc;">
+    <nav>
+        <a href = "main_app.html" style = "margin-right: 1rem;">Главное Приложение</a>
+        <a href = "nfc_attendance.html" style = "margin-right: 1rem;">NFC Посещаемость</a>
+        <a href = "index.html" style = "margin-right: 1rem;">Регистрация & Вход</a>
+    </nav>
+</header>
+<h1>Регистрация & Вход</h1>
+<p>
+    По умолчанию вы видите форму для входа.
+    Чтобы зарегистрироваться, нажмите кнопку <strong>«Регистрация»</strong>, чтобы переключиться к
+    формам регистрации.
+</p>
+
+<hr/>
+
+<div id = "response" class = "response-box"></div>
+
+<!-- Кнопки переключения -->
+<button id = "showLoginBtn" class = "btn">Показать Вход</button>
+<button id = "showRegisterBtn" class = "btn">Показать Регистрацию</button>
+
+<!-- БЛОК ВХОДА (по умолчанию виден) -->
+<div id = "loginSection" class = "">
+    <div class = "box">
+        <h2>Вход</h2>
+        <form id = "loginForm">
+            <label>Email:</label>
+            <input type = "email" id = "loginEmail" required/><br/>
+            <label>Пароль:</label>
+            <input type = "password" id = "loginPassword" required/><br/>
+            <button type = "submit" class = "btn">Войти</button>
+        </form>
+    </div>
+</div>
+
+<!-- БЛОК РЕГИСТРАЦИИ (по умолчанию скрыт) -->
+<div id = "registrationSection" class = "hidden">
+    <!-- Регистрация Студента -->
+    <div class = "box">
+        <h2>Регистрация Студента</h2>
+        <form id = "studentRegisterForm">
+            <label>Email:</label>
+            <input type = "email" id = "studentEmail" required/><br/>
+            <label>Имя пользователя:</label>
+            <input type = "text" id = "studentUsername" required/><br/>
+            <label>Пароль:</label>
+            <input type = "password" id = "studentPassword" required/><br/>
+            <label>Группа:</label>
+            <select id = "studentGroupSelect" required>
+                <!-- Заполняется динамически -->
+            </select><br/>
+            <button type = "submit" class = "btn">Зарегистрировать Студента</button>
+        </form>
+    </div>
+
+    <!-- Регистрация Преподавателя -->
+    <div class = "box">
+        <h2>Регистрация Преподавателя</h2>
+        <form id = "instructorRegisterForm">
+            <label>Email:</label>
+            <input type = "email" id = "instructorEmail" required/><br/>
+            <label>Имя пользователя:</label>
+            <input type = "text" id = "instructorUsername" required/><br/>
+            <label>Пароль:</label>
+            <input type = "password" id = "instructorPassword" required/><br/>
+            <label>Секретный ключ:</label>
+            <input type = "text" id = "secretKey" required/><br/>
+            <button type = "submit" class = "btn">Зарегистрировать Преподавателя</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    const BASE_URL = 'http://127.0.0.1:8000/api';
+
+    // При загрузке страницы пытаемся автоматически обновить токен (если есть refresh-токен)
+    window.addEventListener('load', async () => {
+        const refresh = localStorage.getItem('refresh_token');
+        if (refresh) {
+            await attemptTokenRefresh(refresh);
+        }
+        // А также загружаем список групп для выпадающего списка студента
+        fetchAndPopulateGroups();
+    });
+
+    // 1) Пытаемся обновить токен
+    async function attemptTokenRefresh(refreshToken) {
+        try {
+            const res = await fetch(`${BASE_URL}/token/refresh/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({refresh: refreshToken})
+            });
+            if (res.ok) {
+                const data = await res.json();
+                localStorage.setItem('access_token', data.access);
+            }
+        } catch (error) {
+            console.warn('Не удалось обновить токен:', error);
+        }
+    }
+
+    // 2) Переключение между формами Входа и Регистрации
+    const loginSection = document.getElementById('loginSection');
+    const registrationSection = document.getElementById('registrationSection');
+    const showLoginBtn = document.getElementById('showLoginBtn');
+    const showRegisterBtn = document.getElementById('showRegisterBtn');
+
+    showLoginBtn.addEventListener('click', () => {
+        loginSection.classList.remove('hidden');
+        registrationSection.classList.add('hidden');
+    });
+
+    showRegisterBtn.addEventListener('click', () => {
+        loginSection.classList.add('hidden');
+        registrationSection.classList.remove('hidden');
+    });
+
+    // Вспомогательная функция: показываем ответ в #response
+    function showResponse(data) {
+        document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+    }
+
+    // Вспомогательная функция: сохранить токены
+    function setTokens(access, refresh) {
+        localStorage.setItem('access_token', access);
+        localStorage.setItem('refresh_token', refresh);
+    }
+
+    // 3) Получить список групп с бэкенда и заполнить <select> для студента
+    async function fetchAndPopulateGroups() {
+        try {
+            // Можно не иметь токен здесь, если группы доступны публично
+            const token = localStorage.getItem('access_token');
+            const headers = token ? {'Authorization': 'Bearer ' + token} : {};
+            const res = await fetch(`${BASE_URL}/groups/`, {
+                method: 'GET',
+                headers
+            });
+            if (!res.ok) {
+                console.warn('Не удалось получить группы, статус:', res.status);
+                return;
+            }
+            const groups = await res.json();
+
+            const select = document.getElementById('studentGroupSelect');
+            select.innerHTML = ''; // Очистить предыдущие варианты
+            if (Array.isArray(groups)) {
+                groups.forEach(g => {
+                    const opt = document.createElement('option');
+                    opt.value = g.id;
+                    opt.textContent = g.name;
+                    select.appendChild(opt);
+                });
+            }
+        } catch (err) {
+            console.warn('Не удалось получить группы', err);
+        }
+    }
+
+    // ---------------------------
+    // РЕГИСТРАЦИЯ СТУДЕНТА
+    // ---------------------------
+    document.getElementById('studentRegisterForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('studentEmail').value;
+        const username = document.getElementById('studentUsername').value;
+        const password = document.getElementById('studentPassword').value;
+        const group = document.getElementById('studentGroupSelect').value;
+
+        try {
+            const res = await fetch(`${BASE_URL}/register/student/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email, username, password, group})
+            });
+            const data = await res.json();
+            showResponse(data);
+
+            if (res.ok) {
+                // Если точно студент, переходим на страницу nfc_attendance
+                window.location.href = 'nfc_attendance.html';
+            }
+        } catch (err) {
+            showResponse({error: err.message});
+        }
+    });
+
+    // ---------------------------
+    // РЕГИСТРАЦИЯ ПРЕПОДАВАТЕЛЯ
+    // ---------------------------
+    document.getElementById('instructorRegisterForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('instructorEmail').value;
+        const username = document.getElementById('instructorUsername').value;
+        const password = document.getElementById('instructorPassword').value;
+        const secret_key = document.getElementById('secretKey').value;
+
+        try {
+            const res = await fetch(`${BASE_URL}/register/instructor/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email, username, password, secret_key})
+            });
+            const data = await res.json();
+            showResponse(data);
+
+            if (res.ok) {
+                // Если точно преподаватель, переходим в главное приложение
+                window.location.href = 'main_app.html';
+            }
+        } catch (err) {
+            showResponse({error: err.message});
+        }
+    });
+
+    // -----------
+    // ВХОД
+    // -----------
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('loginEmail').value;
+        const password = document.getElementById('loginPassword').value;
+
+        try {
+            const res = await fetch(`${BASE_URL}/login/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email, password})
+            });
+            const data = await res.json();
+            showResponse(data);
+
+            if (res.ok && data.access && data.refresh) {
+                // Сохраняем токены
+                setTokens(data.access, data.refresh);
+
+                // Получаем роль из JWT токена
+                const token = data.access;
+                try {
+                    // Декодируем JWT токен
+                    const parts = token.split('.');
+                    if (parts.length !== 3) {
+                        throw new Error('Неверный формат токена');
+                    }
+                    // Добавляем padding если необходимо
+                    const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+                    const padding = payload.length % 4;
+                    const paddedPayload = padding ? payload + '='.repeat(4 - padding) : payload;
+
+                    const decoded = JSON.parse(atob(paddedPayload));
+                    const role = decoded.role;
+                    console.log('Роль пользователя из токена:', role);
+
+                    if (role === 'student') {
+                        window.location.href = 'nfc_attendance.html';
+                    } else if (role === 'instructor') {
+                        window.location.href = 'main_app.html';
+                    } else {
+                        throw new Error('Некорректная роль');
+                    }
+                } catch (error) {
+                    console.error('Ошибка при обработке токена:', error);
+                    alert('Ошибка при определении роли пользователя. Пожалуйста, свяжитесь с поддержкой.');
+                }
+            }
+        } catch (err) {
+            showResponse({error: err.message});
+        }
+    });
+</script>
+
+</body>
+</html>

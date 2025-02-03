@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: mgimo_django
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - DEBUG=0
+      - DJANGO_SETTINGS_MODULE=nfc_attendance_system.settings
+      - ALLOWED_HOSTS=89.191.229.171,localhost,127.0.0.1
+    restart: always
+    networks:
+      - mgimo_network
+
+volumes:
+  static_volume:
+
+networks:
+  mgimo_network:
+    driver: bridge

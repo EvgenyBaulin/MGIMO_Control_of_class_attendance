@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset = "UTF-8"/>
+    <title>Главное Приложение - Операции Преподавателя</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 2rem;
+        }
+
+        .box {
+            border: 1px solid #ccc;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        h2, h3 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        form {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: inline-block;
+            width: 120px;
+            margin-right: 0.5rem;
+        }
+
+        input {
+            margin-bottom: 0.5rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+        }
+
+        .response-box {
+            background: #f9f9f9;
+            padding: 0.5rem;
+            white-space: pre-wrap;
+            border: 1px solid #eee;
+            margin-top: 1rem;
+            min-height: 50px;
+        }
+
+        ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        li {
+            margin: 0.3rem 0;
+        }
+    </style>
+</head>
+<body>
+<header style = "margin-bottom: 1rem; padding: 1rem; background: #eee; border-bottom: 1px solid #ccc;">
+    <nav>
+        <a href = "main_app.html" style = "margin-right: 1rem;">Главное Приложение</a>
+        <a href = "nfc_attendance.html" style = "margin-right: 1rem;">NFC Посещаемость</a>
+        <a href = "index.html" style = "margin-right: 1rem;">Регистрация & Вход</a>
+    </nav>
+</header>
+
+<h1>Главное Приложение - Операции Преподавателя</h1>
+<p>
+    На этой странице демонстрируются функции, доступные только преподавателю.
+    Убедитесь, что вы <a href = "index.html">вошли в систему</a> (или зарегистрировались)
+    как преподаватель.
+</p>
+
+<hr/>
+
+<div id = "response" class = "response-box"></div>
+
+<script>
+    const BASE_URL = 'http://127.0.0.1:8000/api';
+
+    // При загрузке пытаемся автоматически обновить токен, если у нас есть refresh-токен
+    window.addEventListener('load', async () => {
+        const refresh = localStorage.getItem('refresh_token');
+        if (refresh) {
+            await attemptTokenRefresh(refresh);
+        }
+    });
+
+    // Пытаемся обновить токен
+    async function attemptTokenRefresh(refreshToken) {
+        try {
+            const res = await fetch(`${BASE_URL}/token/refresh/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({refresh: refreshToken})
+            });
+            if (res.ok) {
+                const data = await res.json();
+                localStorage.setItem('access_token', data.access);
+            }
+        } catch (error) {
+            console.warn('Не удалось обновить токен:', error);
+        }
+    }
+
+    // Получить текущий access-токен
+    function getToken() {
+        return localStorage.getItem('access_token');
+    }
+
+    // Сформировать заголовки с Bearer-токеном (если есть)
+    function authHeaders() {
+        const token = getToken();
+        if (!token) {
+            return {};
+        }
+        return {
+            'Authorization': 'Bearer ' + token
+        };
+    }
+
+    // Показать ответ (data) в элементе #response
+    function showResponse(data) {
+        document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+    }
+</script>
+
+<!-- УПРАВЛЕНИЕ ГРУППАМИ (CLASSROOM) -->
+<div class = "box">
+    <h2>Управление Группами (Академическими)</h2>
+    <h3>Создать Группу</h3>
+    <form id = "createGroupForm">
+        <label for = "groupName">Название группы:</label>
+        <input type = "text" id = "groupName" required/>
+        <button type = "submit" class = "btn">Создать</button>
+    </form>
+
+    <h3>Список групп (порции по 5)</h3>
+    <button id = "loadGroupsBtn" class = "btn">Загрузить группы</button>
+    <button id = "loadMoreGroupsBtn" class = "btn" disabled>Загрузить ещё 5</button>
+    <ul id = "groupsList"></ul>
+</div>
+
+<!-- УПРАВЛЕНИЕ АУДИТОРИЯМИ (NFC) -->
+<div class = "box">
+    <h2>Управление Аудиториями (NFC)</h2>
+    <h3>Создать Аудиторию</h3>
+    <form id = "createAuditoriumForm">
+        <label for = "auditoriumName">Название:</label>
+        <input type = "text" id = "auditoriumName" required/>
+        <button type = "submit" class = "btn">Создать</button>
+    </form>
+
+    <h3>Список аудиторий (NFC кодов) (порции по 5)</h3>
+    <button id = "loadAuditoriumsBtn" class = "btn">Загрузить аудитории</button>
+    <button id = "loadMoreAuditoriumsBtn" class = "btn" disabled>Загрузить ещё 5</button>
+    <ul id = "auditoriumsList"></ul>
+</div>
+
+<!-- УПРАВЛЕНИЕ ЛЕКЦИЯМИ -->
+<div class = "box">
+    <h2>Управление Лекциями</h2>
+    <h3>Создать Лекцию</h3>
+    <form id = "createLectureForm">
+        <label>Заголовок:</label>
+        <input type = "text" id = "lectureTitle" required/><br/>
+        <label>Дата:</label>
+        <input type = "date" id = "lectureDate" required/><br/>
+        <label>Время начала:</label>
+        <input type = "time" id = "startTime" required/><br/>
+        <label>Время окончания:</label>
+        <input type = "time" id = "endTime" required/><br/>
+        <label>ID Аудитории:</label>
+        <input type = "number" id = "auditoriumId" required/><br/>
+        <button type = "submit" class = "btn">Создать лекцию</button>
+    </form>
+
+    <h3>Список лекций (порции по 5)</h3>
+    <button id = "loadLecturesBtn" class = "btn">Загрузить лекции</button>
+    <button id = "loadMoreLecturesBtn" class = "btn" disabled>Загрузить ещё 5</button>
+    <ul id = "lecturesList"></ul>
+</div>
+
+<!-- ПРОСМОТР ПОСЕЩАЕМОСТИ (ПО ID ЛЕКЦИИ) -->
+<div class = "box">
+    <h2>Просмотр посещаемости</h2>
+    <p>Введите ID лекции, чтобы увидеть данные о посещаемости.</p>
+    <form id = "viewAttendanceForm">
+        <label for = "lectureID">ID Лекции:</label>
+        <input type = "number" id = "lectureID" required/>
+        <button type = "submit" class = "btn">Получить посещаемость</button>
+    </form>
+</div>
+
+<script>
+    // ----------------------------
+    // ГЛОБАЛЬНЫЕ МАССИВЫ + ИНДЕКСЫ
+    // ----------------------------
+    let groups = [];
+    let groupsIndex = 0;
+
+    let auditoriums = [];
+    let auditoriumsIndex = 0;
+
+    let lectures = [];
+    let lecturesIndex = 0;
+
+    // ----------------------------
+    // СОЗДАНИЕ ГРУППЫ
+    // ----------------------------
+    document.getElementById('createGroupForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('groupName').value;
+        try {
+            const res = await fetch(`${BASE_URL}/groups/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...authHeaders()
+                },
+                body: JSON.stringify({name})
+            });
+            const data = await res.json();
+            showResponse(data);
+        } catch (err) {
+            showResponse({error: err.message});
+        }
+    });
+
+    // ----------------------------
+    // СПИСОК ГРУПП (ПОРЦИИ ПО 5)
+    // ----------------------------
+    document.getElementById('loadGroupsBtn').addEventListener('click', async () => {
+        try {
+            const res = await fetch(`${BASE_URL}/groups/`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...authHeaders()
+                }
+            });
+            groups = await res.json();
+            groupsIndex = 0;
+            document.getElementById('groupsList').innerHTML = ''; // очистить прежний список
+            displayGroupsBatch();
+        } catch (err) {
+            showResponse({error: err.message});
+        }
+    });
+
+    document.getElementById('loadMoreGroupsBtn').addEventListener('click', () => {
+        displayGroupsBatch();
+    });
+
+    function displayGroupsBatch() {
+        const listEl = document.getElementById('groupsList');
+        const btnMore = document.getElementById('loadMoreGroupsBtn');
+
+        // Показать следующие 5 (или оставшиеся)
+        const end = Math.min(groupsIndex + 5, groups.length);
+        for (let i = groupsIndex; i < end; i++) {
+            const li = document.createElement('li');
+            li.textContent = `ID: ${groups[i].id} | Название: ${groups[i].name}`;
+            listEl.appendChild(li);
+        }
+        groupsIndex = end;
+
+        // Если всё показали, отключаем кнопку
+        if (groupsIndex >= groups.length) {
+            btnMore.disabled = true;
+        } else {
+            btnMore.disabled = false;
+        }
+    }
+
+    // ----------------------------
+    // СОЗДАНИЕ АУДИТОРИИ
+    // ----------------------------
+    document.getElementById('createAuditoriumForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('auditoriumName').value;
+        try {
+            const res = await fetch(`${BASE_URL}/auditoriums/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...authHeaders()
+                },
+                body: JSON.stringify({name})
+            });
+            const data = await res.json();
+            showResponse(data);
+        } catch (err) {
+            showResponse({error: err.message});
+        }
+    });
+
+    // ----------------------------
+    // СПИСОК АУДИТОРИЙ (NFC) (ПОРЦИИ ПО 5)
+    // ----------------------------
+    document.getElementById('loadAuditoriumsBtn').addEventListener('click', async () => {
+        try {
+            const res = await fetch(`${BASE_URL}/auditoriums/`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...authHeaders()
+                }
+            });
+            auditoriums = await res.json();
+            auditoriumsIndex = 0;
+            document.getElementById('auditoriumsList').innerHTML = ''; // очистить старый список
+            displayAuditoriumsBatch();
+        } catch (err) {
+            showResponse({error: err.message});
+        }
+    });
+
+    document.getElementById('loadMoreAuditoriumsBtn').addEventListener('click', () => {
+        displayAuditoriumsBatch();
+    });
+
+    function displayAuditoriumsBatch() {
+        const listEl = document.getElementById('auditoriumsList');
+        const btnMore = document.getElementById('loadMoreAuditoriumsBtn');
+
+        const end = Math.min(auditoriumsIndex + 5, auditoriums.length);
+        for (let i = auditoriumsIndex; i < end; i++) {
+            const li = document.createElement('li');
+            li.textContent = `ID: ${auditoriums[i].id} | Название: ${auditoriums[i].name} | NFC-код: ${auditoriums[i].nfc_code}`;
+            listEl.appendChild(li);
+        }
+        auditoriumsIndex = end;
+
+        if (auditoriumsIndex >= auditoriums.length) {
+            btnMore.disabled = true;
+        } else {
+            btnMore.disabled = false;
+        }
+    }
+
+    // ----------------------------
+    // СОЗДАНИЕ ЛЕКЦИИ
+    // ----------------------------
+    document.getElementById('createLectureForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const title = document.getElementById('lectureTitle').value;
+        const date = document.getElementById('lectureDate').value;
+        const start_time = document.getElementById('startTime').value;
+        const end_time = document.getElementById('endTime').value;
+        const auditorium = document.getElementById('auditoriumId').value;
+
+        try {
+            const res = await fetch(`${BASE_URL}/lectures/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...authHeaders()
+                },
+                body: JSON.stringify({title, date, start_time, end_time, auditorium})
+            });
+            const data = await res.json();
+            showResponse(data);
+        } catch (err) {
+            showResponse({error: err.message});
+        }
+    });
+
+    // ----------------------------
+    // СПИСОК ЛЕКЦИЙ (ПОРЦИИ ПО 5)
+    // ----------------------------
+    document.getElementById('loadLecturesBtn').addEventListener('click', async () => {
+        try {
+            const res = await fetch(`${BASE_URL}/lectures/`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...authHeaders()
+                }
+            });
+            lectures = await res.json();
+            lecturesIndex = 0;
+            document.getElementById('lecturesList').innerHTML = '';
+            displayLecturesBatch();
+        } catch (err) {
+            showResponse({error: err.message});
+        }
+    });
+
+    document.getElementById('loadMoreLecturesBtn').addEventListener('click', () => {
+        displayLecturesBatch();
+    });
+
+    function displayLecturesBatch() {
+        const listEl = document.getElementById('lecturesList');
+        const btnMore = document.getElementById('loadMoreLecturesBtn');
+
+        const end = Math.min(lecturesIndex + 5, lectures.length);
+        for (let i = lecturesIndex; i < end; i++) {
+            const li = document.createElement('li');
+            const lecture = lectures[i];
+            li.textContent = `ID: ${lecture.id} | Заголовок: ${lecture.title} | Дата: ${lecture.date} | Начало: ${lecture.start_time} | Аудитория: ${lecture.auditorium}`;
+            listEl.appendChild(li);
+        }
+        lecturesIndex = end;
+
+        if (lecturesIndex >= lectures.length) {
+            btnMore.disabled = true;
+        } else {
+            btnMore.disabled = false;
+        }
+    }
+
+    function showResponseInTable(data) {
+        // Предположим, что "data" - это массив объектов с полями:
+        // {
+        //   "student": { "id": 123, "username": "some_student" },
+        //   "timestamp": "2025-01-01T10:00:00Z",
+        //   ...
+        // }
+        // Настройте под свой формат.
+
+        // Находим элемент #response и очищаем его содержимое
+        const responseEl = document.getElementById('response');
+        responseEl.innerHTML = '';
+
+        // Если данные не массив, или пустые — отобразим как есть
+        if (!Array.isArray(data) || data.length === 0) {
+            responseEl.textContent = 'Нет данных для отображения в таблице.';
+            return;
+        }
+
+        // Создаём таблицу
+        const table = document.createElement('table');
+        table.style.borderCollapse = 'collapse';
+        table.style.width = '100%';
+
+        // Создаём заголовок (thead)
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+
+        // Допустим, в каждой записи есть student.id, student.username, timestamp
+        // Можно добавить и другие поля.
+        const columns = ['ID студента', 'Имя пользователя', 'Время отметки'];
+
+        columns.forEach(colName => {
+            const th = document.createElement('th');
+            th.style.border = '1px solid #ccc';
+            th.style.padding = '8px';
+            th.style.background = '#f2f2f2';
+            th.textContent = colName;
+            headerRow.appendChild(th);
+        });
+
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        // Создаём тело таблицы (tbody)
+        const tbody = document.createElement('tbody');
+
+        // Заполняем строки таблицы
+        data.forEach(item => {
+            const tr = document.createElement('tr');
+
+            // Извлекаем нужные поля — настроить под свою структуру
+            const studentId = item.student?.id ?? '—';
+            const studentName = item.student?.username ?? '—';
+            const timestamp = item.timestamp ?? '—';
+
+            // Ячейка 1: ID студента
+            const tdId = document.createElement('td');
+            tdId.style.border = '1px solid #ccc';
+            tdId.style.padding = '8px';
+            tdId.textContent = studentId;
+            tr.appendChild(tdId);
+
+            // Ячейка 2: Имя пользователя
+            const tdName = document.createElement('td');
+            tdName.style.border = '1px solid #ccc';
+            tdName.style.padding = '8px';
+            tdName.textContent = studentName;
+            tr.appendChild(tdName);
+
+            // Ячейка 3: Время отметки (timestamp)
+            const tdTime = document.createElement('td');
+            tdTime.style.border = '1px solid #ccc';
+            tdTime.style.padding = '8px';
+            tdTime.textContent = timestamp;
+            tr.appendChild(tdTime);
+
+            tbody.appendChild(tr);
+        });
+
+        table.appendChild(tbody);
+
+        // Добавляем готовую таблицу в блок #response
+        responseEl.appendChild(table);
+    }
+
+    // ПРОСМОТР ПОСЕЩАЕМОСТИ (ПО ID ЛЕКЦИИ)
+    document.getElementById('viewAttendanceForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const lectureId = document.getElementById('lectureID').value;
+        try {
+            // Пример эндпоинта: GET /api/lectures/<lecture_id>/attendance/
+            const url = `${BASE_URL}/attendance/${lectureId}/`;
+            const res = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...authHeaders()
+                }
+            });
+
+            // Разбираем JSON
+            const data = await res.json();
+
+            // Если запрос успешный, покажем алерт
+            if (res.ok) {
+                alert("Данные о посещаемости успешно получены!");
+                showResponseInTable(data);
+            } else {
+                // Если сервер вернул ошибку
+                alert("Не удалось получить посещаемость. Проверьте ответ ниже.");
+                showResponse(data);
+            }
+        } catch (err) {
+            alert("Ошибка при получении посещаемости!");
+            showResponse({error: err.message});
+        }
+    });
+
+    // Допустим, у вас где-то есть функция showResponseInTable(data),
+    // которая отображает данные в виде таблицы.
+    // Здесь она не прописана, но вы можете реализовать её самостоятельно.
+</script>
+
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset = "UTF-8"/>
+    <title>NFC Посещаемость</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 2rem;
+        }
+
+        .box {
+            border: 1px solid #ccc;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        h2 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        form {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: inline-block;
+            width: 120px;
+            margin-right: 0.5rem;
+        }
+
+        input {
+            margin-bottom: 0.5rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+        }
+
+        .response-box {
+            background: #f9f9f9;
+            padding: 0.5rem;
+            white-space: pre-wrap;
+            border: 1px solid #eee;
+            margin-top: 1rem;
+            min-height: 50px;
+        }
+    </style>
+</head>
+<body>
+<header style = "margin-bottom: 1rem; padding: 1rem; background: #eee; border-bottom: 1px solid #ccc;">
+    <nav>
+        <a href = "main_app.html" style = "margin-right: 1rem;">Главное Приложение</a>
+        <a href = "nfc_attendance.html" style = "margin-right: 1rem;">NFC Посещаемость</a>
+        <a href = "index.html" style = "margin-right: 1rem;">Регистрация & Вход</a>
+    </nav>
+</header>
+<h1>NFC Посещаемость</h1>
+<p>
+    Эта страница предназначена для студентов, чтобы они могли отсканировать NFC-код и зафиксировать
+    своё посещение.
+    Если вы только что зарегистрировались как студент, вы должны автоматически перейти сюда!
+</p>
+
+<hr/>
+
+<div id = "response" class = "response-box"></div>
+
+<script>
+    const BASE_URL = 'http://127.0.0.1:8000/api';
+
+    // Получаем access-токен (устанавливается после входа или регистрации)
+    function getToken() {
+        return localStorage.getItem('access_token');
+    }
+
+    // Формируем заголовки с Bearer-токеном (если он есть)
+    function authHeaders() {
+        const token = getToken();
+        return token ? {'Authorization': 'Bearer ' + token} : {};
+    }
+
+    // Показать ответ в #response
+    function showResponse(data) {
+        document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+    }
+</script>
+
+<div class = "box">
+    <h2>Отметить посещаемость</h2>
+    <form id = "attendanceForm">
+        <label for = "nfcCode">NFC-код:</label>
+        <input type = "text" id = "nfcCode" required/>
+        <button type = "submit" class = "btn">Отправить</button>
+    </form>
+</div>
+
+<script>
+    document.getElementById('attendanceForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const code = document.getElementById('nfcCode').value;
+        try {
+            const res = await fetch(`${BASE_URL}/attendance/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...authHeaders()
+                },
+                body: JSON.stringify({code})
+            });
+            const data = await res.json();
+            showResponse(data);
+        } catch (err) {
+            showResponse({error: err.message});
+        }
+    });
+</script>
+
+</body>
+</html>

@@ -1,5 +1,5 @@
 #!/bin/sh
-'''exec' "/Users/evgenybaulin/Library/Mobile Documents/com~apple~CloudDocs/Work/MGIMO. Control of class attendance/venv/bin/python3.10" "$0" "$@"
+'''exec' "/Users/evgenybaulin/Library/Mobile Documents/com~apple~CloudDocs/Work/MGIMO. Control of class attendance/venv/bin/python" "$0" "$@"
 ' '''
 # -*- coding: utf-8 -*-
 import re
