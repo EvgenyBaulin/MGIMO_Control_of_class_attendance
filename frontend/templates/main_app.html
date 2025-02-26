@@ -1,539 +1,627 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset = "UTF-8"/>
-    <title>Главное Приложение - Операции Преподавателя</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 2rem;
-        }
-
-        .box {
-            border: 1px solid #ccc;
-            padding: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        h2, h3 {
-            margin-top: 1.5rem;
-            margin-bottom: 0.5rem;
-        }
-
-        form {
-            margin-bottom: 1rem;
-        }
-
-        label {
-            display: inline-block;
-            width: 120px;
-            margin-right: 0.5rem;
-        }
-
-        input {
-            margin-bottom: 0.5rem;
-        }
-
-        .btn {
-            padding: 0.5rem 1rem;
-            cursor: pointer;
-        }
-
-        .response-box {
-            background: #f9f9f9;
-            padding: 0.5rem;
-            white-space: pre-wrap;
-            border: 1px solid #eee;
-            margin-top: 1rem;
-            min-height: 50px;
-        }
-
-        ul {
-            list-style: none;
-            padding-left: 0;
-        }
-
-        li {
-            margin: 0.3rem 0;
-        }
-    </style>
+    <meta charset="UTF-8"/>
+    <title>Главное Приложение</title>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
-<body>
-<header style = "margin-bottom: 1rem; padding: 1rem; background: #eee; border-bottom: 1px solid #ccc;">
-    <nav>
-        <a href = "main_app.html" style = "margin-right: 1rem;">Главное Приложение</a>
-        <a href = "nfc_attendance.html" style = "margin-right: 1rem;">NFC Посещаемость</a>
-        <a href = "index.html" style = "margin-right: 1rem;">Регистрация & Вход</a>
-    </nav>
-</header>
+<body x-data="{
+    BASE_URL: 'http://89.191.229.171:8000/api',
+    groups: [],
+    auditoriums: [],
+    lectures: [],
+    responseMessage: '',
+    showGroups: false,
+    showAuditoriums: false,
+    showLectures: false,
 
-<h1>Главное Приложение - Операции Преподавателя</h1>
-<p>
-    На этой странице демонстрируются функции, доступные только преподавателю.
-    Убедитесь, что вы <a href = "index.html">вошли в систему</a> (или зарегистрировались)
-    как преподаватель.
-</p>
-
-<hr/>
-
-<div id = "response" class = "response-box"></div>
-
-<script>
-    const BASE_URL = 'http://127.0.0.1:8000/api';
-
-    // При загрузке пытаемся автоматически обновить токен, если у нас есть refresh-токен
-    window.addEventListener('load', async () => {
-        const refresh = localStorage.getItem('refresh_token');
-        if (refresh) {
-            await attemptTokenRefresh(refresh);
-        }
-    });
-
-    // Пытаемся обновить токен
-    async function attemptTokenRefresh(refreshToken) {
+    async fetchGroups() {
         try {
-            const res = await fetch(`${BASE_URL}/token/refresh/`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({refresh: refreshToken})
+        const token = localStorage.getItem('access_token');
+            const res = await fetch(`${this.BASE_URL}/groups/`, {
+                headers: {'Authorization': 'Bearer ' + token}
+            });
+            if (res.ok) {
+                this.groups = await res.json();
+                this.showGroups = true;
+                this.showAuditoriums = false;
+                this.showLectures = false;
+            }
+        } catch (err) {
+            console.error('Error fetching groups:', err);
+            this.responseMessage = 'Ошибка при загрузке групп';
+        }
+    },
+
+    async fetchAuditoriums() {
+        try {
+            const token = localStorage.getItem('access_token');
+            const res = await fetch(`${this.BASE_URL}/auditoriums/`, {
+                headers: {'Authorization': 'Bearer ' + token}
+            });
+            if (res.ok) {
+                this.auditoriums = await res.json();
+                this.showGroups = false;
+                this.showAuditoriums = true;
+                this.showLectures = false;
+            }
+        } catch (err) {
+            console.error('Error fetching auditoriums:', err);
+            this.responseMessage = 'Ошибка при загрузке аудиторий';
+        }
+    },
+
+    async fetchLectures() {
+        try {
+            const token = localStorage.getItem('access_token');
+            const res = await fetch(`${this.BASE_URL}/lectures/`, {
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                }
             });
             if (res.ok) {
                 const data = await res.json();
-                localStorage.setItem('access_token', data.access);
+                this.lectures = data.map(lecture => ({
+                    ...lecture,
+                    showAttendance: false,
+                    onTimeStudents: [],
+                    lateStudents: [],
+                    absentStudents: []
+                }));
+                this.showGroups = false;
+                this.showAuditoriums = false;
+                this.showLectures = true;
             }
-        } catch (error) {
-            console.warn('Не удалось обновить токен:', error);
+        } catch (err) {
+            console.error('Error fetching lectures:', err);
+            this.responseMessage = 'Ошибка при загрузке лекций';
         }
-    }
+    },
 
-    // Получить текущий access-токен
-    function getToken() {
-        return localStorage.getItem('access_token');
-    }
-
-    // Сформировать заголовки с Bearer-токеном (если есть)
-    function authHeaders() {
-        const token = getToken();
-        if (!token) {
-            return {};
-        }
-        return {
-            'Authorization': 'Bearer ' + token
-        };
-    }
-
-    // Показать ответ (data) в элементе #response
-    function showResponse(data) {
-        document.getElementById('response').textContent = JSON.stringify(data, null, 2);
-    }
-</script>
-
-<!-- УПРАВЛЕНИЕ ГРУППАМИ (CLASSROOM) -->
-<div class = "box">
-    <h2>Управление Группами (Академическими)</h2>
-    <h3>Создать Группу</h3>
-    <form id = "createGroupForm">
-        <label for = "groupName">Название группы:</label>
-        <input type = "text" id = "groupName" required/>
-        <button type = "submit" class = "btn">Создать</button>
-    </form>
-
-    <h3>Список групп (порции по 5)</h3>
-    <button id = "loadGroupsBtn" class = "btn">Загрузить группы</button>
-    <button id = "loadMoreGroupsBtn" class = "btn" disabled>Загрузить ещё 5</button>
-    <ul id = "groupsList"></ul>
-</div>
-
-<!-- УПРАВЛЕНИЕ АУДИТОРИЯМИ (NFC) -->
-<div class = "box">
-    <h2>Управление Аудиториями (NFC)</h2>
-    <h3>Создать Аудиторию</h3>
-    <form id = "createAuditoriumForm">
-        <label for = "auditoriumName">Название:</label>
-        <input type = "text" id = "auditoriumName" required/>
-        <button type = "submit" class = "btn">Создать</button>
-    </form>
-
-    <h3>Список аудиторий (NFC кодов) (порции по 5)</h3>
-    <button id = "loadAuditoriumsBtn" class = "btn">Загрузить аудитории</button>
-    <button id = "loadMoreAuditoriumsBtn" class = "btn" disabled>Загрузить ещё 5</button>
-    <ul id = "auditoriumsList"></ul>
-</div>
-
-<!-- УПРАВЛЕНИЕ ЛЕКЦИЯМИ -->
-<div class = "box">
-    <h2>Управление Лекциями</h2>
-    <h3>Создать Лекцию</h3>
-    <form id = "createLectureForm">
-        <label>Заголовок:</label>
-        <input type = "text" id = "lectureTitle" required/><br/>
-        <label>Дата:</label>
-        <input type = "date" id = "lectureDate" required/><br/>
-        <label>Время начала:</label>
-        <input type = "time" id = "startTime" required/><br/>
-        <label>Время окончания:</label>
-        <input type = "time" id = "endTime" required/><br/>
-        <label>ID Аудитории:</label>
-        <input type = "number" id = "auditoriumId" required/><br/>
-        <button type = "submit" class = "btn">Создать лекцию</button>
-    </form>
-
-    <h3>Список лекций (порции по 5)</h3>
-    <button id = "loadLecturesBtn" class = "btn">Загрузить лекции</button>
-    <button id = "loadMoreLecturesBtn" class = "btn" disabled>Загрузить ещё 5</button>
-    <ul id = "lecturesList"></ul>
-</div>
-
-<!-- ПРОСМОТР ПОСЕЩАЕМОСТИ (ПО ID ЛЕКЦИИ) -->
-<div class = "box">
-    <h2>Просмотр посещаемости</h2>
-    <p>Введите ID лекции, чтобы увидеть данные о посещаемости.</p>
-    <form id = "viewAttendanceForm">
-        <label for = "lectureID">ID Лекции:</label>
-        <input type = "number" id = "lectureID" required/>
-        <button type = "submit" class = "btn">Получить посещаемость</button>
-    </form>
-</div>
-
-<script>
-    // ----------------------------
-    // ГЛОБАЛЬНЫЕ МАССИВЫ + ИНДЕКСЫ
-    // ----------------------------
-    let groups = [];
-    let groupsIndex = 0;
-
-    let auditoriums = [];
-    let auditoriumsIndex = 0;
-
-    let lectures = [];
-    let lecturesIndex = 0;
-
-    // ----------------------------
-    // СОЗДАНИЕ ГРУППЫ
-    // ----------------------------
-    document.getElementById('createGroupForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
+    async createGroup() {
         const name = document.getElementById('groupName').value;
         try {
-            const res = await fetch(`${BASE_URL}/groups/`, {
+            const token = localStorage.getItem('access_token');
+            const res = await fetch(`${this.BASE_URL}/groups/`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    ...authHeaders()
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({name})
+                body: JSON.stringify({ name })
             });
-            const data = await res.json();
-            showResponse(data);
-        } catch (err) {
-            showResponse({error: err.message});
-        }
-    });
-
-    // ----------------------------
-    // СПИСОК ГРУПП (ПОРЦИИ ПО 5)
-    // ----------------------------
-    document.getElementById('loadGroupsBtn').addEventListener('click', async () => {
-        try {
-            const res = await fetch(`${BASE_URL}/groups/`, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...authHeaders()
-                }
-            });
-            groups = await res.json();
-            groupsIndex = 0;
-            document.getElementById('groupsList').innerHTML = ''; // очистить прежний список
-            displayGroupsBatch();
-        } catch (err) {
-            showResponse({error: err.message});
-        }
-    });
-
-    document.getElementById('loadMoreGroupsBtn').addEventListener('click', () => {
-        displayGroupsBatch();
-    });
-
-    function displayGroupsBatch() {
-        const listEl = document.getElementById('groupsList');
-        const btnMore = document.getElementById('loadMoreGroupsBtn');
-
-        // Показать следующие 5 (или оставшиеся)
-        const end = Math.min(groupsIndex + 5, groups.length);
-        for (let i = groupsIndex; i < end; i++) {
-            const li = document.createElement('li');
-            li.textContent = `ID: ${groups[i].id} | Название: ${groups[i].name}`;
-            listEl.appendChild(li);
-        }
-        groupsIndex = end;
-
-        // Если всё показали, отключаем кнопку
-        if (groupsIndex >= groups.length) {
-            btnMore.disabled = true;
-        } else {
-            btnMore.disabled = false;
-        }
-    }
-
-    // ----------------------------
-    // СОЗДАНИЕ АУДИТОРИИ
-    // ----------------------------
-    document.getElementById('createAuditoriumForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const name = document.getElementById('auditoriumName').value;
-        try {
-            const res = await fetch(`${BASE_URL}/auditoriums/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...authHeaders()
-                },
-                body: JSON.stringify({name})
-            });
-            const data = await res.json();
-            showResponse(data);
-        } catch (err) {
-            showResponse({error: err.message});
-        }
-    });
-
-    // ----------------------------
-    // СПИСОК АУДИТОРИЙ (NFC) (ПОРЦИИ ПО 5)
-    // ----------------------------
-    document.getElementById('loadAuditoriumsBtn').addEventListener('click', async () => {
-        try {
-            const res = await fetch(`${BASE_URL}/auditoriums/`, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...authHeaders()
-                }
-            });
-            auditoriums = await res.json();
-            auditoriumsIndex = 0;
-            document.getElementById('auditoriumsList').innerHTML = ''; // очистить старый список
-            displayAuditoriumsBatch();
-        } catch (err) {
-            showResponse({error: err.message});
-        }
-    });
-
-    document.getElementById('loadMoreAuditoriumsBtn').addEventListener('click', () => {
-        displayAuditoriumsBatch();
-    });
-
-    function displayAuditoriumsBatch() {
-        const listEl = document.getElementById('auditoriumsList');
-        const btnMore = document.getElementById('loadMoreAuditoriumsBtn');
-
-        const end = Math.min(auditoriumsIndex + 5, auditoriums.length);
-        for (let i = auditoriumsIndex; i < end; i++) {
-            const li = document.createElement('li');
-            li.textContent = `ID: ${auditoriums[i].id} | Название: ${auditoriums[i].name} | NFC-код: ${auditoriums[i].nfc_code}`;
-            listEl.appendChild(li);
-        }
-        auditoriumsIndex = end;
-
-        if (auditoriumsIndex >= auditoriums.length) {
-            btnMore.disabled = true;
-        } else {
-            btnMore.disabled = false;
-        }
-    }
-
-    // ----------------------------
-    // СОЗДАНИЕ ЛЕКЦИИ
-    // ----------------------------
-    document.getElementById('createLectureForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const title = document.getElementById('lectureTitle').value;
-        const date = document.getElementById('lectureDate').value;
-        const start_time = document.getElementById('startTime').value;
-        const end_time = document.getElementById('endTime').value;
-        const auditorium = document.getElementById('auditoriumId').value;
-
-        try {
-            const res = await fetch(`${BASE_URL}/lectures/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...authHeaders()
-                },
-                body: JSON.stringify({title, date, start_time, end_time, auditorium})
-            });
-            const data = await res.json();
-            showResponse(data);
-        } catch (err) {
-            showResponse({error: err.message});
-        }
-    });
-
-    // ----------------------------
-    // СПИСОК ЛЕКЦИЙ (ПОРЦИИ ПО 5)
-    // ----------------------------
-    document.getElementById('loadLecturesBtn').addEventListener('click', async () => {
-        try {
-            const res = await fetch(`${BASE_URL}/lectures/`, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...authHeaders()
-                }
-            });
-            lectures = await res.json();
-            lecturesIndex = 0;
-            document.getElementById('lecturesList').innerHTML = '';
-            displayLecturesBatch();
-        } catch (err) {
-            showResponse({error: err.message});
-        }
-    });
-
-    document.getElementById('loadMoreLecturesBtn').addEventListener('click', () => {
-        displayLecturesBatch();
-    });
-
-    function displayLecturesBatch() {
-        const listEl = document.getElementById('lecturesList');
-        const btnMore = document.getElementById('loadMoreLecturesBtn');
-
-        const end = Math.min(lecturesIndex + 5, lectures.length);
-        for (let i = lecturesIndex; i < end; i++) {
-            const li = document.createElement('li');
-            const lecture = lectures[i];
-            li.textContent = `ID: ${lecture.id} | Заголовок: ${lecture.title} | Дата: ${lecture.date} | Начало: ${lecture.start_time} | Аудитория: ${lecture.auditorium}`;
-            listEl.appendChild(li);
-        }
-        lecturesIndex = end;
-
-        if (lecturesIndex >= lectures.length) {
-            btnMore.disabled = true;
-        } else {
-            btnMore.disabled = false;
-        }
-    }
-
-    function showResponseInTable(data) {
-        // Предположим, что "data" - это массив объектов с полями:
-        // {
-        //   "student": { "id": 123, "username": "some_student" },
-        //   "timestamp": "2025-01-01T10:00:00Z",
-        //   ...
-        // }
-        // Настройте под свой формат.
-
-        // Находим элемент #response и очищаем его содержимое
-        const responseEl = document.getElementById('response');
-        responseEl.innerHTML = '';
-
-        // Если данные не массив, или пустые — отобразим как есть
-        if (!Array.isArray(data) || data.length === 0) {
-            responseEl.textContent = 'Нет данных для отображения в таблице.';
-            return;
-        }
-
-        // Создаём таблицу
-        const table = document.createElement('table');
-        table.style.borderCollapse = 'collapse';
-        table.style.width = '100%';
-
-        // Создаём заголовок (thead)
-        const thead = document.createElement('thead');
-        const headerRow = document.createElement('tr');
-
-        // Допустим, в каждой записи есть student.id, student.username, timestamp
-        // Можно добавить и другие поля.
-        const columns = ['ID студента', 'Имя пользователя', 'Время отметки'];
-
-        columns.forEach(colName => {
-            const th = document.createElement('th');
-            th.style.border = '1px solid #ccc';
-            th.style.padding = '8px';
-            th.style.background = '#f2f2f2';
-            th.textContent = colName;
-            headerRow.appendChild(th);
-        });
-
-        thead.appendChild(headerRow);
-        table.appendChild(thead);
-
-        // Создаём тело таблицы (tbody)
-        const tbody = document.createElement('tbody');
-
-        // Заполняем строки таблицы
-        data.forEach(item => {
-            const tr = document.createElement('tr');
-
-            // Извлекаем нужные поля — настроить под свою структуру
-            const studentId = item.student?.id ?? '—';
-            const studentName = item.student?.username ?? '—';
-            const timestamp = item.timestamp ?? '—';
-
-            // Ячейка 1: ID студента
-            const tdId = document.createElement('td');
-            tdId.style.border = '1px solid #ccc';
-            tdId.style.padding = '8px';
-            tdId.textContent = studentId;
-            tr.appendChild(tdId);
-
-            // Ячейка 2: Имя пользователя
-            const tdName = document.createElement('td');
-            tdName.style.border = '1px solid #ccc';
-            tdName.style.padding = '8px';
-            tdName.textContent = studentName;
-            tr.appendChild(tdName);
-
-            // Ячейка 3: Время отметки (timestamp)
-            const tdTime = document.createElement('td');
-            tdTime.style.border = '1px solid #ccc';
-            tdTime.style.padding = '8px';
-            tdTime.textContent = timestamp;
-            tr.appendChild(tdTime);
-
-            tbody.appendChild(tr);
-        });
-
-        table.appendChild(tbody);
-
-        // Добавляем готовую таблицу в блок #response
-        responseEl.appendChild(table);
-    }
-
-    // ПРОСМОТР ПОСЕЩАЕМОСТИ (ПО ID ЛЕКЦИИ)
-    document.getElementById('viewAttendanceForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const lectureId = document.getElementById('lectureID').value;
-        try {
-            // Пример эндпоинта: GET /api/lectures/<lecture_id>/attendance/
-            const url = `${BASE_URL}/attendance/${lectureId}/`;
-            const res = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...authHeaders()
-                }
-            });
-
-            // Разбираем JSON
-            const data = await res.json();
-
-            // Если запрос успешный, покажем алерт
             if (res.ok) {
-                alert("Данные о посещаемости успешно получены!");
-                showResponseInTable(data);
-            } else {
-                // Если сервер вернул ошибку
-                alert("Не удалось получить посещаемость. Проверьте ответ ниже.");
-                showResponse(data);
+                this.fetchGroups();
+                document.getElementById('groupName').value = '';
+                this.responseMessage = 'Группа успешно создана';
             }
         } catch (err) {
-            alert("Ошибка при получении посещаемости!");
-            showResponse({error: err.message});
+            console.error('Error creating group:', err);
+            this.responseMessage = 'Ошибка при создании группы';
         }
-    });
+    },
 
-    // Допустим, у вас где-то есть функция showResponseInTable(data),
-    // которая отображает данные в виде таблицы.
-    // Здесь она не прописана, но вы можете реализовать её самостоятельно.
-</script>
+    async createAuditorium() {
+        const name = document.getElementById('auditoriumName').value;
+        try {
+            const token = localStorage.getItem('access_token');
+            const res = await fetch(`${this.BASE_URL}/auditoriums/`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name })
+            });
+            if (res.ok) {
+                this.fetchAuditoriums();
+                document.getElementById('auditoriumName').value = '';
+                this.responseMessage = 'Аудитория успешно создана';
+            }
+        } catch (err) {
+            console.error('Error creating auditorium:', err);
+            this.responseMessage = 'Ошибка при создании аудитории';
+        }
+    },
+
+    async createLecture() {
+        const formData = {
+            title: document.getElementById('lectureTitle').value,
+            date: document.getElementById('lectureDate').value,
+            start_time: document.getElementById('lectureStartTime').value,
+            end_time: document.getElementById('lectureEndTime').value,
+            auditorium: document.getElementById('lectureAuditorium').value,
+            groups: Array.from(document.getElementById('lectureGroup').selectedOptions).map(opt => opt.value)
+        };
+
+        try {
+            const token = localStorage.getItem('access_token');
+            const res = await fetch(`${this.BASE_URL}/lectures/`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            });
+
+            if (res.ok) {
+                await this.fetchLectures();
+                // Clear form
+                document.getElementById('lectureTitle').value = '';
+                document.getElementById('lectureDate').value = '';
+                document.getElementById('lectureStartTime').value = '';
+                document.getElementById('lectureEndTime').value = '';
+                document.getElementById('lectureGroup').selectedIndex = -1;
+                document.getElementById('lectureAuditorium').selectedIndex = 0;
+                this.responseMessage = 'Лекция успешно создана';
+            } else {
+                throw new Error('Failed to create lecture');
+            }
+        } catch (err) {
+            console.error('Error creating lecture:', err);
+            this.responseMessage = 'Ошибка при создании лекции';
+        }
+    },
+
+    async fetchAttendance(lectureId) {
+        try {
+            const token = localStorage.getItem('access_token');
+            const res = await fetch(`${this.BASE_URL}/lectures/${lectureId}/attendance/`, {
+                headers: {'Authorization': 'Bearer ' + token}
+            });
+            if (res.ok) {
+            const data = await res.json();
+                this.lectures = this.lectures.map(lecture => {
+                    if (lecture.id === lectureId) {
+                        return {
+                            ...lecture,
+                            showAttendance: true,
+                            onTimeStudents: data.on_time,
+                            lateStudents: data.late,
+                            absentStudents: data.absent
+                        };
+                    }
+                    return lecture;
+                });
+            }
+        } catch (err) {
+            console.error('Error fetching attendance:', err);
+            this.responseMessage = 'Ошибка при загрузке посещаемости';
+        }
+    },
+
+    async fetchLectureAttendance(lectureId) {
+        try {
+            const token = localStorage.getItem('access_token');
+            const res = await fetch(`${this.BASE_URL}/lectures/${lectureId}/attendance/`, {
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                // Обновляем данные лекции
+                this.lectures = this.lectures.map(lecture => {
+                    if (lecture.id === lectureId) {
+                        return {
+                            ...lecture,
+                            showAttendance: true,
+                            onTimeStudents: data.on_time,
+                            lateStudents: data.late,
+                            absentStudents: data.absent,
+                            stats: data.stats,
+                            auditorium: data.lecture_info.auditorium,
+                            auditorium_nfc_code: data.lecture_info.auditorium_nfc_code,
+                            date: data.lecture_info.date,
+                            start_time: data.lecture_info.start_time,
+                            end_time: data.lecture_info.end_time,
+                            groups: data.lecture_info.groups
+                        };
+                    }
+                    return lecture;
+                });
+            }
+        } catch (err) {
+            console.error('Error fetching lecture attendance:', err);
+            this.responseMessage = 'Ошибка при загрузке посещаемости';
+        }
+    },
+
+    async deleteLecture(lectureId) {
+        try {
+            const token = localStorage.getItem('access_token');
+            const res = await fetch(`${this.BASE_URL}/lectures/${lectureId}/`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': 'Bearer ' + token
+                }
+            });
+            if (res.ok) {
+                await this.fetchLectures();
+                this.responseMessage = 'Лекция успешно удалена';
+            }
+        } catch (err) {
+            console.error('Error deleting lecture:', err);
+            this.responseMessage = 'Ошибка при удалении лекции';
+        }
+    }
+}" 
+x-init="
+    $nextTick(() => {
+        fetchGroups();
+        fetchAuditoriums();
+        fetchLectures();
+    })
+">
+
+<header style="margin-bottom: 1rem; padding: 1rem; background: #eee; border-bottom: 1px solid #ccc;">
+    <nav>
+        <a href="main_app.html" style="margin-right: 1rem;">Главное Приложение</a>
+        <a href="nfc_records.html" style="margin-right: 1rem;">История NFC отметок</a>
+        <a href="nfc_attendance.html" style="margin-right: 1rem;">NFC Посещаемость</a>
+        <a href="index.html" style="margin-right: 1rem;">Регистрация & Вход</a>
+        <button @click="localStorage.clear(); window.location.href='index.html'" class="btn" style="float: right;">Выйти</button>
+    </nav>
+</header>
+
+<div class="container">
+    <!-- Кнопки навигации -->
+    <div class="nav-buttons">
+        <button @click="fetchGroups()" class="btn">Показать Группы</button>
+        <button @click="fetchAuditoriums()" class="btn">Показать Аудитории</button>
+        <button @click="fetchLectures()" class="btn">Показать Лекции</button>
+    </div>
+
+    <!-- Сообщение об ответе -->
+    <div x-show="responseMessage" class="message-box" x-text="responseMessage"></div>
+
+    <!-- Группы -->
+    <div x-show="showGroups" class="box">
+        <h2>Группы</h2>
+        <!-- Форма создания группы -->
+        <form @submit.prevent="createGroup">
+            <label>Название группы:</label>
+            <input type="text" id="groupName" required/><br/>
+            <button type="submit" class="btn">Создать Группу</button>
+        </form>
+        <!-- Список групп -->
+        <div class="list-container">
+            <h3>Список групп:</h3>
+            <template x-for="group in groups" :key="group.id">
+                <div class="list-item">
+                    <span x-text="group.name"></span>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Аудитории -->
+    <div x-show="showAuditoriums" class="box">
+        <h2>Аудитории</h2>
+        <!-- Форма создания аудитории -->
+        <form @submit.prevent="createAuditorium">
+            <label>Название аудитории:</label>
+            <input type="text" id="auditoriumName" required/><br/>
+            <button type="submit" class="btn">Создать Аудиторию</button>
+        </form>
+        <!-- Список аудиторий -->
+        <div class="list-container">
+            <h3>Список аудиторий:</h3>
+            <template x-for="auditorium in auditoriums" :key="auditorium.id">
+                <div class="list-item">
+                    <span x-text="auditorium.name"></span>
+                    <span x-text="'NFC код: ' + auditorium.nfc_code" class="nfc-code"></span>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Лекции -->
+    <div x-show="showLectures" class="box">
+        <h2>Лекции</h2>
+        <!-- Форма создания лекции -->
+        <form @submit.prevent="createLecture">
+            <label>Название:</label>
+            <input type="text" id="lectureTitle" required/><br/>
+            
+            <label>Дата:</label>
+            <input type="date" id="lectureDate" required/><br/>
+            
+            <label>Время начала:</label>
+            <input type="time" id="lectureStartTime" required/><br/>
+            
+            <label>Время окончания:</label>
+            <input type="time" id="lectureEndTime" required/><br/>
+            
+            <label>Аудитория:</label>
+            <select id="lectureAuditorium" required>
+                <template x-for="auditorium in auditoriums" :key="auditorium.id">
+                    <option :value="auditorium.id" x-text="auditorium.name"></option>
+                </template>
+            </select><br/>
+            
+            <label>Группы:</label>
+            <select id="lectureGroup" multiple required class="groups-select">
+                <template x-for="group in groups" :key="group.id">
+                    <option :value="group.id" x-text="group.name"></option>
+                </template>
+            </select><br/>
+            
+            <button type="submit" class="btn">Создать Лекцию</button>
+        </form>
+        <!-- Список лекций -->
+        <div class="list-container">
+            <h3>Список лекций:</h3>
+            <template x-for="lecture in lectures" :key="lecture.id">
+                <div class="lecture-item">
+                    <div class="lecture-header">
+                        <span x-text="lecture.title"></span>
+                        <div class="lecture-actions">
+                            <button @click="fetchLectureAttendance(lecture.id)" class="btn">
+                                Показать посещаемость
+                            </button>
+                            <button @click="deleteLecture(lecture.id)" class="btn btn-danger">
+                                Удалить
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Информация о посещаемости -->
+                    <div x-show="lecture.showAttendance" class="attendance-info">
+                        <h4>Информация о лекции:</h4>
+                        <p>Дата: <span x-text="lecture.date"></span></p>
+                        <p>Время: <span x-text="lecture.start_time"></span> - <span x-text="lecture.end_time"></span></p>
+                        <p>Аудитория: <span x-text="lecture.auditorium"></span></p>
+                        <p>Группы: <span x-text="lecture.groups.join(', ')"></span></p>
+                        
+                        <!-- Добавляем информацию о NFC -->
+                        <div class="nfc-info">
+                            <h4>NFC Информация:</h4>
+                            <div class="nfc-details">
+                                <p>
+                                    <strong>Код для метки:</strong> 
+                                    <span class="nfc-code" x-text="lecture.auditorium_nfc_code"></span>
+                                </p>
+                                <p>
+                                    <strong>Ссылка для NFC метки:</strong>
+                                    <span class="nfc-link">http://mgimo.tarakan-tuc.ru/nfc_attendance.html?code=<span x-text="lecture.auditorium_nfc_code"></span></span>
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="attendance-stats">
+                            <h4>Статистика:</h4>
+                            <p>Всего студентов: <span x-text="lecture.stats?.total_students || 0"></span></p>
+                            <p>Вовремя: <span x-text="lecture.stats?.on_time_count || 0"></span></p>
+                            <p>Опоздали: <span x-text="lecture.stats?.late_count || 0"></span></p>
+                            <p>Отсутствуют: <span x-text="lecture.stats?.absent_count || 0"></span></p>
+                        </div>
+
+                        <div class="attendance-lists">
+                            <div class="attendance-column">
+                                <h4>Пришли вовремя:</h4>
+                                <template x-for="student in lecture.onTimeStudents" :key="student.id">
+                                    <div class="student-item">
+                                        <span x-text="student.username"></span>
+                                        <span class="group-tag" x-text="student.group"></span>
+                                        <span class="time-tag" x-text="new Date(student.timestamp).toLocaleTimeString()"></span>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <div class="attendance-column">
+                                <h4>Опоздали:</h4>
+                                <template x-for="student in lecture.lateStudents" :key="student.id">
+                                    <div class="student-item">
+                                        <span x-text="student.username"></span>
+                                        <span class="group-tag" x-text="student.group"></span>
+                                        <span class="time-tag" x-text="new Date(student.timestamp).toLocaleTimeString()"></span>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <div class="attendance-column">
+                                <h4>Отсутствуют:</h4>
+                                <template x-for="student in lecture.absentStudents" :key="student.id">
+                                    <div class="student-item">
+                                        <span x-text="student.username"></span>
+                                        <span class="group-tag" x-text="student.group"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>
+
+<style>
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.box {
+    border: 1px solid #ccc;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+}
+
+.btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    margin-right: 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background: #0056b3;
+}
+
+.nav-buttons {
+    margin-bottom: 1rem;
+}
+
+input, select {
+    width: 100%;
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+label {
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.list-container {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+}
+
+.list-item {
+    padding: 0.5rem;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.nfc-code {
+    color: #666;
+    font-size: 0.9em;
+}
+
+.lecture-item {
+    border: 1px solid #eee;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    border-radius: 4px;
+}
+
+.message-box {
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+    background: #e9ecef;
+    border: 1px solid #dee2e6;
+}
+
+h4 {
+    margin: 0 0 0.5rem 0;
+}
+
+.attendance-info {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+}
+
+.attendance-stats {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: white;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.attendance-lists {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.attendance-column {
+    background: white;
+    padding: 1rem;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.student-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem;
+    border-bottom: 1px solid #eee;
+}
+
+.time-tag {
+    font-size: 0.8em;
+    color: #666;
+    background: #e9ecef;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+}
+
+.group-tag {
+    background: #e9ecef;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.8em;
+    color: #666;
+}
+
+.lecture-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-danger {
+    background: #dc3545;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+}
+
+/* Update lecture form for multiple groups */
+.groups-select {
+    height: 150px;
+    overflow-y: auto;
+}
+
+.groups-select option {
+    padding: 0.25rem;
+}
+
+.nfc-info {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: white;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.nfc-details {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-top: 0.5rem;
+}
+
+.nfc-code, .nfc-link {
+    font-family: monospace;
+    background: #e9ecef;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    word-break: break-all;
+}
+</style>
 
 </body>
 </html>

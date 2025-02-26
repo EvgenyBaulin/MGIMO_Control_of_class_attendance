@@ -11,7 +11,9 @@ WORKDIR /app
 # Устанавливаем зависимости для psycopg2 и другие системные зависимости
 RUN apt-get update && apt-get install -y \
     gcc \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
 
 # Копируем requirements.txt
 COPY backend/requirements.txt /app/
@@ -24,6 +26,3 @@ COPY backend/ /app/
 
 # Пробрасываем порт
 EXPOSE 8000
-
-# Команда для запуска
-CMD python manage.py runserver 0.0.0.0:8000

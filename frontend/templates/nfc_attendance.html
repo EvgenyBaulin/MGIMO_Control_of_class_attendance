@@ -1,122 +1,129 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset = "UTF-8"/>
+    <meta charset="UTF-8"/>
     <title>NFC Посещаемость</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 2rem;
-        }
-
-        .box {
-            border: 1px solid #ccc;
-            padding: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        h2 {
-            margin-top: 1.5rem;
-            margin-bottom: 0.5rem;
-        }
-
-        form {
-            margin-bottom: 1rem;
-        }
-
-        label {
-            display: inline-block;
-            width: 120px;
-            margin-right: 0.5rem;
-        }
-
-        input {
-            margin-bottom: 0.5rem;
-        }
-
-        .btn {
-            padding: 0.5rem 1rem;
-            cursor: pointer;
-        }
-
-        .response-box {
-            background: #f9f9f9;
-            padding: 0.5rem;
-            white-space: pre-wrap;
-            border: 1px solid #eee;
-            margin-top: 1rem;
-            min-height: 50px;
-        }
-    </style>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
-<body>
-<header style = "margin-bottom: 1rem; padding: 1rem; background: #eee; border-bottom: 1px solid #ccc;">
-    <nav>
-        <a href = "main_app.html" style = "margin-right: 1rem;">Главное Приложение</a>
-        <a href = "nfc_attendance.html" style = "margin-right: 1rem;">NFC Посещаемость</a>
-        <a href = "index.html" style = "margin-right: 1rem;">Регистрация & Вход</a>
-    </nav>
-</header>
-<h1>NFC Посещаемость</h1>
-<p>
-    Эта страница предназначена для студентов, чтобы они могли отсканировать NFC-код и зафиксировать
-    своё посещение.
-    Если вы только что зарегистрировались как студент, вы должны автоматически перейти сюда!
-</p>
-
-<hr/>
-
-<div id = "response" class = "response-box"></div>
-
-<script>
-    const BASE_URL = 'http://127.0.0.1:8000/api';
-
-    // Получаем access-токен (устанавливается после входа или регистрации)
-    function getToken() {
-        return localStorage.getItem('access_token');
-    }
-
-    // Формируем заголовки с Bearer-токеном (если он есть)
-    function authHeaders() {
-        const token = getToken();
-        return token ? {'Authorization': 'Bearer ' + token} : {};
-    }
-
-    // Показать ответ в #response
-    function showResponse(data) {
-        document.getElementById('response').textContent = JSON.stringify(data, null, 2);
-    }
-</script>
-
-<div class = "box">
-    <h2>Отметить посещаемость</h2>
-    <form id = "attendanceForm">
-        <label for = "nfcCode">NFC-код:</label>
-        <input type = "text" id = "nfcCode" required/>
-        <button type = "submit" class = "btn">Отправить</button>
-    </form>
-</div>
-
-<script>
-    document.getElementById('attendanceForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const code = document.getElementById('nfcCode').value;
+<body x-data="{
+    BASE_URL: 'http://89.191.229.171:8000/api',
+    responseMessage: '',
+    nfcCode: '',
+    
+    async markAttendance(code) {
         try {
-            const res = await fetch(`${BASE_URL}/attendance/`, {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                // Если пользователь не авторизован, перенаправляем на страницу входа
+                window.location.href = 'index.html';
+                return;
+            }
+
+            const res = await fetch(`${this.BASE_URL}/nfc-record/`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    ...authHeaders()
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({code})
+                body: JSON.stringify({ code })
             });
             const data = await res.json();
-            showResponse(data);
+            
+            if (res.ok) {
+                this.responseMessage = 'Отметка успешно сохранена';
+            } else {
+                throw new Error(data.error || 'Ошибка при сохранении отметки');
+            }
         } catch (err) {
-            showResponse({error: err.message});
+            this.responseMessage = err.message;
+            console.error('Error saving NFC record:', err);
         }
-    });
-</script>
+    }
+}" 
+x-init="
+    $nextTick(() => {
+        // Получаем код из URL при загрузке страницы
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        if (code) {
+            // Устанавливаем код в поле ввода
+            $data.nfcCode = code;
+        }
+    })
+">
+
+<header style="margin-bottom: 1rem; padding: 1rem; background: #eee; border-bottom: 1px solid #ccc;">
+    <nav>
+        <a href="main_app.html" style="margin-right: 1rem;">Главное Приложение</a>
+        <a href="nfc_attendance.html" style="margin-right: 1rem;">NFC Посещаемость</a>
+        <a href="index.html" style="margin-right: 1rem;">Регистрация & Вход</a>
+        <button @click="localStorage.clear(); window.location.href='index.html'" class="btn" style="float: right;">Выйти</button>
+    </nav>
+</header>
+
+<div class="container">
+    <h1>NFC Посещаемость</h1>
+    
+    <div class="box">
+        <h2>Отметить Посещение</h2>
+        <form @submit.prevent="markAttendance(nfcCode)">
+            <label>NFC Код:</label>
+            <input type="password" x-model="nfcCode" required/><br/>
+            <button type="submit" class="btn">Отметить Посещение</button>
+        </form>
+    </div>
+
+    <div x-show="responseMessage" class="message-box" x-text="responseMessage"></div>
+</div>
+
+<style>
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.box {
+    border: 1px solid #ccc;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+}
+
+.btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background: #0056b3;
+}
+
+input {
+    width: 100%;
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+label {
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.message-box {
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+    background: #e9ecef;
+    border: 1px solid #dee2e6;
+}
+</style>
 
 </body>
-</html>
+</html> 

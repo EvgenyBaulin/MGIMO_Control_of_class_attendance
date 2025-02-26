@@ -11,13 +11,11 @@ services:
     environment:
       - DEBUG=0
       - DJANGO_SETTINGS_MODULE=nfc_attendance_system.settings
-      - ALLOWED_HOSTS=89.191.229.171,localhost,127.0.0.1
+      - HOST_ADDRESS=127.0.0.1
+    command: sh -c "python manage.py migrate && python manage.py runserver $$HOST_ADDRESS:8000"
     restart: always
     networks:
       - mgimo_network
-
-volumes:
-  static_volume:
 
 networks:
   mgimo_network:
