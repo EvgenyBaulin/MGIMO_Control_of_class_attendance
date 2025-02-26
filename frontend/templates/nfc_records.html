@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8"/>
+    <title>История NFC отметок</title>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body x-data="{
+    BASE_URL: 'http://89.191.229.171:8000/api',
+    records: [],
+    responseMessage: '',
+
+    async fetchRecords() {
+        try {
+            const token = localStorage.getItem('access_token');
+            const res = await fetch(`${this.BASE_URL}/nfc-records/`, {
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (res.ok) {
+                this.records = await res.json();
+            } else {
+                throw new Error('Failed to fetch records');
+            }
+        } catch (err) {
+            console.error('Error fetching records:', err);
+            this.responseMessage = 'Ошибка при загрузке записей';
+        }
+    }
+}" x-init="fetchRecords()">
+
+<header style="margin-bottom: 1rem; padding: 1rem; background: #eee; border-bottom: 1px solid #ccc;">
+    <nav>
+        <a href="main_app.html" style="margin-right: 1rem;">Главное Приложение</a>
+        <a href="nfc_records.html" style="margin-right: 1rem;">История NFC отметок</a>
+        <a href="nfc_attendance.html" style="margin-right: 1rem;">NFC Посещаемость</a>
+        <a href="index.html" style="margin-right: 1rem;">Регистрация & Вход</a>
+        <button @click="localStorage.clear(); window.location.href='index.html'" class="btn" style="float: right;">Выйти</button>
+    </nav>
+</header>
+
+<div class="container">
+    <h1>История NFC отметок</h1>
+    
+    <div x-show="responseMessage" class="message-box" x-text="responseMessage"></div>
+
+    <div class="records-list">
+        <template x-for="record in records" :key="record.id">
+            <div class="record-item">
+                <div class="record-header">
+                    <span class="student-name" x-text="record.student.username"></span>
+                    <span class="group-tag" x-text="record.student.group"></span>
+                </div>
+                <div class="record-details">
+                    <div>Аудитория: <span x-text="record.auditorium"></span></div>
+                    <div>Время: <span x-text="new Date(record.timestamp).toLocaleString()"></span></div>
+                </div>
+            </div>
+        </template>
+    </div>
+</div>
+
+<style>
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.message-box {
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+    background: #e9ecef;
+    border: 1px solid #dee2e6;
+}
+
+.records-list {
+    margin-top: 2rem;
+}
+
+.record-item {
+    background: white;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.record-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.student-name {
+    font-weight: bold;
+}
+
+.group-tag {
+    background: #e9ecef;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.8em;
+    color: #666;
+}
+
+.record-details {
+    color: #666;
+    font-size: 0.9em;
+}
+
+.btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background: #0056b3;
+}
+</style>
+
+</body>
+</html> 

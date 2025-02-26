@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8"/>
+    <title>История посещений</title>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body x-data="{
+    BASE_URL: 'http://89.191.229.171:8000/api',
+    lectures: [],
+    selectedLecture: null,
+    attendanceData: null,
+    responseMessage: '',
+
+    async fetchLectures() {
+        try {
+            const token = localStorage.getItem('access_token');
+            const res = await fetch(`${this.BASE_URL}/lectures/`, {
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (res.ok) {
+                this.lectures = await res.json();
+                console.log('Fetched lectures:', this.lectures); // Debug log
+            } else {
+                throw new Error('Failed to fetch lectures');
+            }
+        } catch (err) {
+            console.error('Error fetching lectures:', err);
+            this.responseMessage = 'Ошибка при загрузке списка лекций';
+        }
+    },
+
+    async fetchAttendance(lectureId) {
+        if (!lectureId) return;
+        try {
+            const token = localStorage.getItem('access_token');
+            const res = await fetch(`${this.BASE_URL}/lectures/${lectureId}/attendance/`, {
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (res.ok) {
+                this.attendanceData = await res.json();
+                this.selectedLecture = this.lectures.find(l => l.id === parseInt(lectureId));
+                console.log('Attendance data:', this.attendanceData); // Debug log
+            } else {
+                throw new Error('Failed to fetch attendance');
+            }
+        } catch (err) {
+            console.error('Error fetching attendance:', err);
+            this.responseMessage = 'Ошибка при загрузке посещаемости';
+        }
+    }
+}" 
+x-init="fetchLectures()">
+
+<header style="margin-bottom: 1rem; padding: 1rem; background: #eee; border-bottom: 1px solid #ccc;">
+    <nav>
+        <a href="main_app.html" style="margin-right: 1rem;">Главное Приложение</a>
+        <a href="student_attendance.html" style="margin-right: 1rem;">История посещений</a>
+        <a href="index.html" style="margin-right: 1rem;">Регистрация & Вход</a>
+        <button @click="localStorage.clear(); window.location.href='index.html'" class="btn" style="float: right;">Выйти</button>
+    </nav>
+</header>
+
+<div class="container">
+    <h1>История посещений лекций</h1>
+
+    <!-- Сообщение об ответе -->
+    <div x-show="responseMessage" class="message-box" x-text="responseMessage"></div>
+
+    <!-- Выбор лекции -->
+    <div class="box">
+        <label for="lectureSelect">Выберите лекцию:</label>
+        <select id="lectureSelect" @change="fetchAttendance($event.target.value)">
+            <option value="">-- Выберите лекцию --</option>
+            <template x-for="lecture in lectures" :key="lecture.id">
+                <option :value="lecture.id" x-text="`${lecture.title} (${lecture.date})`"></option>
+            </template>
+        </select>
+    </div>
+
+    <!-- Информация о лекции -->
+    <div x-show="selectedLecture" class="box">
+        <h2>Информация о лекции</h2>
+        <p>Название: <span x-text="selectedLecture?.title"></span></p>
+        <p>Дата: <span x-text="selectedLecture?.date"></span></p>
+        <p>Время: <span x-text="selectedLecture?.start_time"></span> - <span x-text="selectedLecture?.end_time"></span></p>
+        <p>Аудитория: <span x-text="selectedLecture?.auditorium"></span></p>
+        <p>Группы: <span x-text="selectedLecture?.groups.join(', ')"></span></p>
+    </div>
+
+    <!-- Статистика посещаемости -->
+    <div x-show="attendanceData" class="attendance-history">
+        <h2>Статистика посещаемости</h2>
+        <div class="attendance-columns">
+            <div class="attendance-column">
+                <h3>Пришли вовремя (<span x-text="attendanceData?.on_time.length"></span>)</h3>
+                <template x-for="student in attendanceData?.on_time" :key="student.id">
+                    <div class="attendance-item">
+                        <span x-text="student.username"></span>
+                        <small class="group-tag" x-text="student.group"></small>
+                    </div>
+                </template>
+            </div>
+
+            <div class="attendance-column">
+                <h3>Опоздали (<span x-text="attendanceData?.late.length"></span>)</h3>
+                <template x-for="student in attendanceData?.late" :key="student.id">
+                    <div class="attendance-item">
+                        <span x-text="student.username"></span>
+                        <small class="group-tag" x-text="student.group"></small>
+                    </div>
+                </template>
+            </div>
+
+            <div class="attendance-column">
+                <h3>Отсутствовали (<span x-text="attendanceData?.absent.length"></span>)</h3>
+                <template x-for="student in attendanceData?.absent" :key="student.id">
+                    <div class="attendance-item">
+                        <span x-text="student.username"></span>
+                        <small class="group-tag" x-text="student.group"></small>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.box {
+    border: 1px solid #ccc;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+}
+
+.btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background: #0056b3;
+}
+
+select {
+    width: 100%;
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.message-box {
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+    background: #e9ecef;
+    border: 1px solid #dee2e6;
+}
+
+.attendance-history {
+    margin-top: 2rem;
+}
+
+.attendance-columns {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.attendance-column {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+    counter-reset: student-counter;
+}
+
+.attendance-column h3 {
+    margin: 0 0 1rem 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.attendance-item {
+    background: white;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+    position: relative;
+    padding-left: 2rem;
+}
+
+.attendance-item::before {
+    counter-increment: student-counter;
+    content: counter(student-counter) ".";
+    position: absolute;
+    left: 0.5rem;
+    color: #666;
+}
+
+.attendance-item p {
+    margin: 0;
+    color: #333;
+}
+
+.group-tag {
+    background: #e9ecef;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.8em;
+    color: #666;
+}
+</style>
+
+</body>
+</html> 
